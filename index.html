@@ -3,309 +3,897 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Camera Access</title>
+    <title>Myanmar Pay Flow</title>
+    <!-- Roboto Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Roboto', sans-serif;
+            background-color: #f0f2f5;
+            -webkit-tap-highlight-color: transparent;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: #f0f2f5;
-            padding: 20px;
+            margin: 0;
+            padding: 0;
         }
-        .container {
-            background: white;
-            padding: 2rem;
-            border-radius: 20px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-            max-width: 400px;
-            width: 100%;
+
+        .screen {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .screen.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .progress-ring__circle {
+            transition: stroke-dashoffset 1s linear;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        @keyframes continuous-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .spinner-active {
+            animation: continuous-spin 2s linear infinite;
+            transform-origin: center;
+        }
+
+        #custom-toast {
+            visibility: hidden;
+            min-width: 280px;
+            background-color: #1e293b;
+            color: #fff;
             text-align: center;
-        }
-        h1 {
-            font-size: 1.5rem;
-            color: #1a1a2e;
-            margin-bottom: 0.5rem;
-        }
-        p {
-            color: #6c757d;
-            margin-bottom: 1.5rem;
-            font-size: 0.95rem;
-        }
-        #cameraBtn {
-            background: #4a6cf7;
-            color: white;
-            border: none;
-            padding: 14px 32px;
-            font-size: 1.1rem;
-            border-radius: 50px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 600;
-            box-shadow: 0 4px 12px rgba(74, 108, 247, 0.3);
-        }
-        #cameraBtn:hover { background: #3a5cd9; transform: translateY(-2px); }
-        #cameraBtn:active { transform: scale(0.96); }
-        #cameraBtn:disabled {
-            background: #adb5bd;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        #status {
-            margin-top: 1rem;
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 0.9rem;
-            display: none;
-        }
-        #status.success {
-            display: block;
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        #status.error {
-            display: block;
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        #status.info {
-            display: block;
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-        #videoContainer {
-            margin-top: 1.5rem;
             border-radius: 12px;
-            overflow: hidden;
-            background: #000;
-            display: none;
-            position: relative;
+            padding: 16px 20px;
+            position: fixed;
+            z-index: 999;
+            left: 50%;
+            bottom: 40px;
+            transform: translateX(-50%);
+            font-size: 15px;
+            font-weight: 500;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
         }
-        #videoContainer video {
+        #custom-toast.show {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .viewfinder-corner {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 4px solid #fff;
+            z-index: 10;
+        }
+        .viewfinder-corner.tl { top: 20px; left: 20px; border-bottom: 0; border-right: 0; }
+        .viewfinder-corner.tr { top: 20px; right: 20px; border-bottom: 0; border-left: 0; }
+        .viewfinder-corner.bl { bottom: 20px; left: 20px; border-top: 0; border-right: 0; }
+        .viewfinder-corner.br { bottom: 20px; right: 20px; border-top: 0; border-left: 0; }
+
+        @keyframes scan-line {
+            0% { top: 20px; opacity: 0; }
+            50% { top: calc(100% - 20px); opacity: 1; }
+            100% { top: 20px; opacity: 0; }
+        }
+        .scan-animation {
+            position: absolute;
+            left: 20px;
+            right: 20px;
+            height: 2px;
+            background: #00ffcc;
+            box-shadow: 0 0 15px #00ffcc, 0 0 30px #00ffcc;
+            animation: scan-line 2.5s ease-in-out infinite;
+            z-index: 20;
+        }
+
+        .app-container {
             width: 100%;
-            display: block;
-            max-height: 400px;
-            object-fit: cover;
+            max-width: 414px;
+            height: 100vh;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            margin: 0 auto;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
         }
-        .btn-icon {
-            font-size: 1.3rem;
+        @media (min-width: 640px) {
+            .app-container {
+                height: 860px;
+                border-radius: 32px;
+                border: 8px solid #111827;
+            }
         }
-        .permission-badge {
-            display: inline-block;
-            background: #e9ecef;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            color: #495057;
-            margin-top: 8px;
-        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📸 Camera Access</h1>
-        <p>Tap the button below to open your camera</p>
 
-        <button id="cameraBtn">
-            <span class="btn-icon">📷</span> Open Camera
-        </button>
+    <div class="app-container">
+        <div id="custom-toast">Success</div>
 
-        <div id="status"></div>
+        <div class="flex-grow flex flex-col overflow-hidden relative">
 
-        <div id="videoContainer">
-            <video id="video" autoplay playsinline></video>
+            <!-- SCREEN 0: SCANNER -->
+            <div id="scan_screen" class="screen active flex-col h-full bg-black relative">
+                <div class="h-14 flex items-center justify-center bg-black/80 text-white shrink-0 z-20">
+                    <div class="font-bold text-lg">Scan QR Code</div>
+                </div>
+                <div class="flex-grow relative flex flex-col items-center justify-center px-8 pt-4 pb-4">
+                    <div class="relative w-full max-w-[320px] aspect-square border-0 rounded-lg overflow-hidden bg-[#111] shadow-2xl">
+                        <video id="camera-preview" class="w-full h-full object-cover hidden"></video>
+                        <div class="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
+                        <div class="viewfinder-corner tl z-20"></div>
+                        <div class="viewfinder-corner tr z-20"></div>
+                        <div class="viewfinder-corner bl z-20"></div>
+                        <div class="viewfinder-corner br z-20"></div>
+                        <div class="scan-animation"></div>
+                        <div class="absolute inset-0 flex items-center justify-center z-30 flex-col gap-2 pointer-events-none">
+                            <i class="fas fa-qrcode text-6xl text-white/60 animate-pulse"></i>
+                            <p class="text-white text-[15px] font-medium mt-2 opacity-70">Align QR code within frame</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-300 text-sm mt-6 font-medium">Scanning merchant payment code...</p>
+                    <p class="text-gray-500 text-xs mt-1">Tap "Scan" to start</p>
+                </div>
+                <div class="absolute bottom-6 left-0 w-full p-4 bg-black/80 border-t border-gray-800 flex items-center justify-between gap-4 z-40 shrink-0">
+                    <button onclick="startRealCamera()" id="scan-btn" class="flex-1 h-12 bg-[#2E9E3F] hover:bg-[#258232] text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fas fa-camera"></i> Scan
+                    </button>
+                    <button onclick="openHistory()" class="flex-1 h-12 bg-white/10 hover:bg-white/20 text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fas fa-clock-rotate-left"></i> History
+                    </button>
+                </div>
+            </div>
+
+            <!-- SCREEN 1: AMOUNT INPUT -->
+            <div id="amount_input_screen" class="screen flex-col h-full bg-white">
+                <div class="h-14 flex items-center px-4 border-b border-gray-100 bg-white shrink-0">
+                    <button onclick="changeScreen('scan_screen')" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-chevron-left text-lg"></i>
+                    </button>
+                    <div class="flex-grow text-center font-bold text-gray-900 text-lg pr-10">Myanmar Pay (MMQR)</div>
+                </div>
+                <div class="flex-grow overflow-y-auto px-5 py-4 no-scrollbar bg-white">
+                    <div class="flex flex-col items-center my-4">
+                        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRyuSd3Mo-CNgPEuC0DAdr6ojlkn6EPnRrSyNZIPIaz8g&s=10" alt="Myanmar Pay MMQR Logo" class="h-24 object-contain" />
+                    </div>
+                    <div class="space-y-4 mt-4">
+                        <div class="flex justify-between items-start border-b border-gray-50 pb-1">
+                            <span class="text-[15px] text-gray-500 font-medium">Merchant Name</span>
+                            <span id="display-merchant-en" class="font-bold text-gray-900 text-right text-[15px]">PALACE RESTAURANT</span>
+                        </div>
+                        <div class="flex justify-between items-start border-b border-gray-50 pb-1">
+                            <span class="text-[15px] text-gray-500 font-medium">Merchant Name (My)</span>
+                            <span id="display-merchant-my" class="font-bold text-gray-900 text-right text-[15px] text-base">ပလတ်စ် စားသောက်ဆိုင်</span>
+                        </div>
+                        <div class="flex justify-between items-start border-b border-gray-50 pb-1">
+                            <span class="text-[15px] text-gray-500 font-medium">Merchant PAN</span>
+                            <span class="font-mono font-bold text-gray-900 tracking-wider text-[15px]">223733XXXXX5963</span>
+                        </div>
+                        <div class="flex justify-between items-start border-b border-gray-50 pb-1">
+                            <span class="text-[15px] text-gray-500 font-medium">Merchant City</span>
+                            <span class="font-bold text-gray-900 text-right text-[15px]">YANGON</span>
+                        </div>
+                        <div class="flex justify-between items-start">
+                            <span class="text-[15px] text-gray-500 font-medium">Merchant City (My)</span>
+                            <span class="font-bold text-gray-900 text-right text-[15px]">ရန်ကုန်</span>
+                        </div>
+                        <div class="pt-2">
+                            <label class="block text-[15px] font-medium text-gray-700 mb-1">Amount (MMK)</label>
+                            <div class="relative flex items-center">
+                                <input type="text" id="amount-field" value="45,000" class="w-full h-12 border border-gray-300 rounded-lg px-3 text-gray-900 font-bold text-base focus:outline-none focus:ring-1 focus:ring-[#2E9E3F] focus:border-[#2E9E3F] bg-white" placeholder="Enter Amount" />
+                            </div>
+                        </div>
+                        <div class="pt-1">
+                            <label class="block text-[15px] font-medium text-gray-700 mb-1">Remark</label>
+                            <textarea id="remark-field" rows="4" class="w-full bg-[#f8f9fa] rounded-lg p-3 text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#2E9E3F] resize-none" placeholder=""></textarea>
+                        </div>
+                        <div class="flex justify-between items-center pt-1">
+                            <span class="text-[15px] text-gray-500 font-medium">Currency</span>
+                            <span class="font-bold text-gray-900 text-[15px]">MMK</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 bg-white border-t border-gray-100 flex items-center gap-4 shrink-0">
+                    <button onclick="goToConfirmPreview()" class="w-1/2 h-12 bg-[#2E9E3F] hover:bg-[#258232] text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95">Accept</button>
+                    <button onclick="clearAmounts()" class="w-1/2 h-12 text-[#2E9E3F] hover:text-[#258232] font-bold transition-all text-[16px] text-center">Cancel</button>
+                </div>
+            </div>
+
+            <!-- SCREEN 2: CONFIRM PREVIEW -->
+            <div id="confirm_preview_screen" class="screen flex-col h-full bg-white">
+                <div class="h-14 flex items-center px-4 border-b border-gray-100 bg-white shrink-0">
+                    <button onclick="changeScreen('amount_input_screen')" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-chevron-left text-lg"></i>
+                    </button>
+                    <div class="flex-grow text-center font-bold text-gray-900 text-lg pr-10">Confirm Payment</div>
+                </div>
+                <div class="flex-grow overflow-y-auto px-5 py-4 no-scrollbar bg-white">
+                    <div class="flex flex-col items-center my-4">
+                        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRyuSd3Mo-CNgPEuC0DAdr6ojlkn6EPnRrSyNZIPIaz8g&s=10" alt="Myanmar Pay MMQR Logo" class="h-20 object-contain" />
+                    </div>
+                    <div class="space-y-4 text-[15px] text-gray-600 border-b border-gray-200 pb-4">
+                        <div class="flex justify-between items-start gap-4">
+                            <span class="shrink-0 text-gray-500 font-medium">End to End ID</span>
+                            <span id="confirm-e2e-id" class="font-mono font-bold text-gray-900 text-right break-words">6a2a305cc3293e51139f9030</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">Transaction Code</span>
+                            <span class="text-gray-900 font-bold">245593517373</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">Transaction Date</span>
+                            <span class="text-gray-900 font-bold" id="confirm-datetime-stamp">20/06/2026 17:23</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">From (Sender Name)</span>
+                            <span class="text-gray-900 font-bold">KAUNG HTET MIN</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">Currency</span>
+                            <span class="text-gray-900 font-bold">MMK</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">Phone Number</span>
+                            <span class="text-gray-900 font-bold">XXXXXX3456</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">To (Merchant Name)</span>
+                            <span id="confirm-merchant-en" class="text-gray-900 font-bold">PALACE RESTAURANT</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">Merchant PAN</span>
+                            <span class="text-gray-900 font-mono font-bold tracking-wide">223733XXXXX5963</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3 text-[15px] text-gray-600 pt-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">Amount</span>
+                            <span id="confirm-amt-label" class="text-gray-900 font-bold">45,000.00 MMK</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">Fee</span>
+                            <span class="text-gray-900 font-bold">0.00 MMK</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500 font-medium">Discount</span>
+                            <span class="text-gray-900 font-bold">0.00 MMK</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-4 border-t-2 border-dashed border-gray-300">
+                            <span class="text-black font-bold text-[17px]">Total</span>
+                            <div class="text-right">
+                                <span id="confirm-total-label" class="text-black font-bold text-[17px]">45,000.00 MMK</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 bg-white border-t border-gray-100 flex items-center shrink-0">
+                    <button onclick="changeScreen('amount_input_screen')" class="w-1/2 h-12 text-[#2E9E3F] hover:text-[#258232] font-bold transition-all text-[16px] text-center">Cancel</button>
+                    <button onclick="triggerCountdown()" class="w-1/2 h-12 bg-[#2E9E3F] hover:bg-[#258232] text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95">Confirm</button>
+                </div>
+            </div>
+
+            <!-- SCREEN 3: LOADING COUNTDOWN -->
+            <div id="loading_countdown_screen" class="screen flex-col h-full bg-white select-none">
+                <div class="bg-[#1F7061] text-white py-7 px-6 text-center shrink-0 shadow-sm">
+                    <h1 class="text-lg font-bold tracking-wide">Transaction Processing</h1>
+                    <p class="text-[14px] opacity-90 mt-1 font-medium">Please wait while we complete your payment</p>
+                </div>
+                <div class="flex-grow flex flex-col items-center justify-center px-6 py-4 no-scrollbar">
+                    <div class="relative w-40 h-40 flex items-center justify-center mb-6">
+                        <svg class="w-full h-full transform -rotate-90 spinner-active" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="45" stroke="#f1f5f9" stroke-width="5" fill="transparent"></circle>
+                            <circle id="countdown-progress" cx="50" cy="50" r="45" stroke="#2f9a78" stroke-width="5" fill="transparent" stroke-dasharray="283" stroke-dashoffset="0" class="progress-ring__circle" stroke-linecap="round"></circle>
+                        </svg>
+                        <div class="absolute flex flex-col items-center justify-center">
+                            <span id="countdown-number" class="text-5xl font-black text-gray-800">6</span>
+                            <span class="text-[10px] uppercase font-bold text-gray-500 tracking-widest mt-1">SECONDS</span>
+                        </div>
+                    </div>
+                    <h2 class="text-[#1F7061] font-bold text-xl text-center">Finalizing Your Payment</h2>
+                    <p class="text-[15px] text-gray-500 mt-1 text-center max-w-[300px] font-medium">This should only take a moment. Please be patient.</p>
+                    <div class="w-full bg-[#f5f9ff] border border-[#c6dbf5] rounded-lg p-4 text-left mt-6 shadow-sm">
+                        <div class="flex items-center gap-2 text-[#2563eb] font-bold text-[15px] mb-2">
+                            <i class="fas fa-info-circle text-lg"></i>
+                            <span>Transaction Instructions</span>
+                        </div>
+                        <ul class="text-sm text-slate-700 space-y-1.5 list-disc pl-4 font-medium leading-relaxed">
+                            <li>Keep this window open until the process completes</li>
+                            <li>Do not attempt to make another payment during this time</li>
+                            <li>Contact support if the process takes longer than 2 minutes</li>
+                        </ul>
+                    </div>
+                    <div class="mt-8 text-center text-xs text-gray-400 space-y-1 w-full pb-2">
+                        <p class="font-bold text-gray-500 text-[13px]">Need help? Contact at</p>
+                        <p class="font-medium text-slate-600 text-[13px]">Call Center - <span class="underline">09 776000700</span></p>
+                        <p class="font-medium text-slate-600 text-[13px]">Website - <span class="underline">www.mo.com.mm</span></p>
+                        <p class="max-w-[340px] leading-snug mx-auto text-gray-400 font-medium pt-1 text-[11px]">
+                            Address - Level 3, 66-76, Corner of Merchant Road and Pansodan Street, Kyauktada Tsp Yangon, 11182
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCREEN 4: SUCCESS RECEIPT -->
+            <div id="success_screen" class="screen flex-col h-full bg-white relative">
+                <div class="h-14 flex items-center px-4 border-b border-gray-100 bg-white shrink-0">
+                    <button onclick="resetApp()" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-chevron-left text-lg"></i>
+                    </button>
+                    <div class="flex-grow text-center font-bold text-gray-900 text-lg pr-10">MoMoney</div>
+                </div>
+                <div class="flex-grow overflow-y-auto px-5 py-5 no-scrollbar bg-white" id="receipt-content">
+                    <div class="flex flex-col items-center my-4">
+                        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRyuSd3Mo-CNgPEuC0DAdr6ojlkn6EPnRrSyNZIPIaz8g&s=10" alt="Myanmar Pay MMQR Logo" class="h-24 w-24 object-contain" />
+                    </div>
+                    <div class="space-y-5 text-[15px]">
+                        <div class="flex justify-between items-start gap-4 pt-2">
+                            <span class="font-extrabold text-black shrink-0">End to End ID</span>
+                            <span id="success-e2e-id" class="font-mono font-extrabold text-black text-right break-words">6a2a305cc3293e51139f9030</span>
+                        </div>
+                        <div class="flex justify-between items-center gap-4">
+                            <span class="font-extrabold text-black">Transaction Code</span>
+                            <span class="font-extrabold text-black">266494794301</span>
+                        </div>
+                        <div class="flex justify-between items-center gap-4">
+                            <span class="font-extrabold text-black">ClrSysRef</span>
+                            <span class="font-extrabold text-black">0122026061110195470</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-normal text-gray-500">Source</span>
+                            <span class="text-gray-800 font-normal flex items-center gap-1.5">MoMoney Wallet <i class="fas fa-coins text-yellow-400 text-sm"></i></span>
+                        </div>
+                        <div class="flex justify-between items-center gap-4">
+                            <span class="font-normal text-gray-500">Transaction Name</span>
+                            <span class="font-normal text-gray-800">Payment Of MMQR</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-normal text-gray-500">Transaction Date</span>
+                            <span id="success-date" class="font-normal text-gray-800">20/06/2026 17:23</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-extrabold text-black">Transaction Status</span>
+                            <span class="text-black font-extrabold">Success</span>
+                        </div>
+                        <div class="flex justify-between items-center gap-4">
+                            <span class="font-normal text-gray-500">To (Merchant Name)</span>
+                            <span id="success-merchant-en" class="font-normal text-gray-800">PALACE RESTAURANT</span>
+                        </div>
+                        <div class="flex justify-between items-center gap-4">
+                            <span class="font-normal text-gray-500">From (Customer Name)</span>
+                            <span class="font-normal text-gray-800">KAUNG HTET MIN</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-normal text-gray-500">Phone Number</span>
+                            <span class="font-normal text-gray-800">XXXXXX3456</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-normal text-gray-500">Merchant PAN</span>
+                            <span class="text-gray-800 font-mono font-normal tracking-wide">223733XXXXX5963</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-normal text-gray-500">Amount</span>
+                            <span id="success-amt" class="font-normal text-gray-800">45,000.00 MMK</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-normal text-gray-500">Fee</span>
+                            <span class="font-normal text-gray-800">0.00 MMK</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-normal text-gray-500">Discount</span>
+                            <span class="font-normal text-gray-800">0.00 MMK</span>
+                        </div>
+                        <div class="flex justify-between text-[17px] font-extrabold text-black pt-4 border-t-2 border-dashed border-gray-300 pb-2">
+                            <span>Total</span>
+                            <span id="success-total" class="text-black font-extrabold">45,000.00 MMK</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 bg-white border-t border-gray-100 flex items-center gap-4 shrink-0 relative z-10">
+                    <button onclick="downloadReceipt()" class="w-1/2 h-12 bg-white border-2 border-[#2E9E3F] text-[#2E9E3F] hover:bg-[#2E9E3F] hover:text-white font-bold rounded-lg transition-all text-[16px] flex items-center justify-center gap-2 shadow-sm transform active:scale-95">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button onclick="resetApp()" class="w-1/2 h-12 bg-[#2E9E3F] hover:bg-[#258232] text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95">Done</button>
+                </div>
+            </div>
+
+            <!-- SCREEN 5: HISTORY -->
+            <div id="history_screen" class="screen flex-col h-full bg-white relative">
+                <div class="h-14 flex items-center px-4 border-b border-gray-100 bg-white shrink-0">
+                    <button onclick="changeScreen('scan_screen')" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-chevron-left text-lg"></i>
+                    </button>
+                    <div class="flex-grow text-center font-bold text-gray-900 text-lg pr-10">Transaction History</div>
+                    <button id="history-config-btn" onclick="openMerchantConfig()" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors" title="Merchant Config">
+                        <i class="fas fa-cog text-lg"></i>
+                    </button>
+                </div>
+                <div class="flex-grow overflow-y-auto px-5 py-6 no-scrollbar bg-white" id="history-list-container">
+                    <div id="history-empty" class="flex flex-col items-center justify-center h-full text-gray-400 text-center">
+                        <i class="fas fa-receipt text-6xl mb-4 opacity-40"></i>
+                        <p class="text-lg font-medium">No history yet</p>
+                        <p class="text-sm mt-1">Complete a payment to see it here.</p>
+                    </div>
+                    <div id="history-list" class="space-y-4 hidden"></div>
+                </div>
+            </div>
+
+            <!-- SCREEN 6: MERCHANT CONFIG (hidden, accessed via History button) -->
+            <div id="merchant_config_screen" class="screen flex-col h-full bg-white">
+                <div class="h-14 flex items-center px-4 border-b border-gray-100 bg-white shrink-0">
+                    <button onclick="changeScreen('history_screen')" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-chevron-left text-lg"></i>
+                    </button>
+                    <div class="flex-grow text-center font-bold text-gray-900 text-lg pr-10">Merchant Config</div>
+                </div>
+                <div class="flex-grow overflow-y-auto px-5 py-6 no-scrollbar bg-white">
+                    <div class="space-y-5">
+                        <div>
+                            <label class="block text-[15px] font-medium text-gray-700 mb-1">Merchant Name (EN)</label>
+                            <input type="text" id="config-merchant-en" value="PALACE RESTAURANT" class="w-full h-12 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-base focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
+                        </div>
+                        <div>
+                            <label class="block text-[15px] font-medium text-gray-700 mb-1">Merchant Name (MM)</label>
+                            <input type="text" id="config-merchant-my" value="ပလတ်စ် စားသောက်ဆိုင်" class="w-full h-12 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-base focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
+                        </div>
+                        <button onclick="saveMerchantConfig()" class="w-full h-12 bg-[#2E9E3F] hover:bg-[#258232] text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 mt-4">
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </div>
-
-        <div class="permission-badge" id="permBadge">Permission: Unknown</div>
     </div>
 
     <script>
-        (function() {
-            const cameraBtn = document.getElementById('cameraBtn');
-            const statusDiv = document.getElementById('status');
-            const videoContainer = document.getElementById('videoContainer');
-            const video = document.getElementById('video');
-            const permBadge = document.getElementById('permBadge');
+        // ============================================================
+        //  STATE
+        // ============================================================
+        let cameraStream = null;
+        let transactionHistory = [];
+        let currentE2EId = '';
+        let tapCount = 0;
+        let tapTimer = null;
 
-            let stream = null;
-            let isCameraActive = false;
+        // Load merchant config from localStorage
+        let merchantConfig = {
+            en: 'PALACE RESTAURANT',
+            my: 'ပလတ်စ် စားသောက်ဆိုင်'
+        };
 
-            // Helper: Update status message
-            function setStatus(message, type = 'info') {
-                statusDiv.textContent = message;
-                statusDiv.className = type;
-                statusDiv.style.display = 'block';
+        // ============================================================
+        //  INIT
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const stored = localStorage.getItem('mmqr_history');
+            if (stored) transactionHistory = JSON.parse(stored);
+
+            const configStored = localStorage.getItem('mmqr_merchant_config');
+            if (configStored) {
+                merchantConfig = JSON.parse(configStored);
+                applyMerchantConfig();
             }
 
-            // Helper: Clear status
-            function clearStatus() {
-                statusDiv.style.display = 'none';
-                statusDiv.className = '';
-                statusDiv.textContent = '';
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('scan_screen').classList.add('active');
+        });
+
+        // ============================================================
+        //  MERCHANT CONFIG
+        // ============================================================
+        function applyMerchantConfig() {
+            // Update display fields on amount screen
+            document.getElementById('display-merchant-en').textContent = merchantConfig.en;
+            document.getElementById('display-merchant-my').textContent = merchantConfig.my;
+            // Update confirm screen
+            document.getElementById('confirm-merchant-en').textContent = merchantConfig.en;
+            // Update success screen
+            document.getElementById('success-merchant-en').textContent = merchantConfig.en;
+            // Update config inputs
+            document.getElementById('config-merchant-en').value = merchantConfig.en;
+            document.getElementById('config-merchant-my').value = merchantConfig.my;
+        }
+
+        function openMerchantConfig() {
+            // Load current config into inputs
+            document.getElementById('config-merchant-en').value = merchantConfig.en;
+            document.getElementById('config-merchant-my').value = merchantConfig.my;
+            changeScreen('merchant_config_screen');
+        }
+
+        function saveMerchantConfig() {
+            const en = document.getElementById('config-merchant-en').value.trim();
+            const my = document.getElementById('config-merchant-my').value.trim();
+            if (!en || !my) {
+                showToast('Both fields are required');
+                return;
+            }
+            merchantConfig.en = en;
+            merchantConfig.my = my;
+            localStorage.setItem('mmqr_merchant_config', JSON.stringify(merchantConfig));
+            applyMerchantConfig();
+            showToast('Merchant config saved!');
+            changeScreen('history_screen');
+        }
+
+        // ============================================================
+        //  HISTORY (with 3-tap detection)
+        // ============================================================
+        function openHistory() {
+            // Reset tap counter when opening history normally
+            tapCount = 0;
+            if (tapTimer) {
+                clearTimeout(tapTimer);
+                tapTimer = null;
+            }
+            renderHistoryList();
+            changeScreen('history_screen');
+        }
+
+        // Detect 3 taps on History button → Merchant Config
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('#history-config-btn');
+            if (!btn) return;
+
+            // This is the gear icon inside history screen
+            // We don't use this for 3-tap anymore — we use the main History button
+        });
+
+        // Override the History button click to detect 3 taps
+        // We'll replace the onclick with a wrapper
+        document.querySelector('[onclick="openHistory()"]').addEventListener('click', function(e) {
+            // Prevent default if any
+            e.stopPropagation();
+
+            tapCount++;
+            if (tapTimer) {
+                clearTimeout(tapTimer);
+                tapTimer = null;
             }
 
-            // Update permission badge
-            function updatePermissionBadge(state) {
-                const labels = {
-                    'granted': '✅ Granted',
-                    'denied': '❌ Denied',
-                    'prompt': '⏳ Prompt',
-                    'unknown': '❓ Unknown'
-                };
-                permBadge.textContent = `Permission: ${labels[state] || state}`;
-            }
+            // Reset after 800ms of no tap
+            tapTimer = setTimeout(() => {
+                tapCount = 0;
+                tapTimer = null;
+            }, 800);
 
-            // Check current permission state using Permissions API (if available)
-            async function checkPermissionState() {
-                try {
-                    if (navigator.permissions && navigator.permissions.query) {
-                        const result = await navigator.permissions.query({ name: 'camera' });
-                        updatePermissionBadge(result.state);
-                        return result.state;
-                    }
-                } catch (e) {
-                    // Permissions API not supported or fails
+            if (tapCount === 3) {
+                tapCount = 0;
+                if (tapTimer) {
+                    clearTimeout(tapTimer);
+                    tapTimer = null;
                 }
-                return 'unknown';
+                openMerchantConfig();
+                showToast('Merchant Config opened');
+                return;
             }
 
-            // Stop camera stream
-            function stopCamera() {
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                    stream = null;
-                }
-                video.srcObject = null;
-                videoContainer.style.display = 'none';
-                isCameraActive = false;
-                cameraBtn.innerHTML = '<span class="btn-icon">📷</span> Open Camera';
-                cameraBtn.disabled = false;
-                clearStatus();
+            // Normal history open (1st or 2nd tap)
+            if (tapCount === 1) {
+                renderHistoryList();
+                changeScreen('history_screen');
             }
+            // 2nd tap does nothing special, just opens history again if not already
+            if (tapCount === 2) {
+                // Already on history, do nothing
+            }
+        });
 
-            // Start camera
-            async function startCamera() {
-                // Check if already active
-                if (isCameraActive) {
-                    setStatus('Camera is already running', 'info');
-                    return;
-                }
+        // Also need to keep the original inline onclick for fallback but we override it
+        // Actually we remove the inline onclick and bind properly
+        // Let's fix: remove onclick from HTML and use addEventListener
+        // We'll do that in the script after DOM load
+        document.addEventListener('DOMContentLoaded', function() {
+            const historyBtn = document.querySelector('[onclick="openHistory()"]');
+            if (historyBtn) {
+                historyBtn.removeAttribute('onclick');
+                // Our click handler above will handle it
+            }
+        });
 
-                cameraBtn.disabled = true;
-                cameraBtn.innerHTML = '⏳ Requesting...';
+        // Also the original openHistory function is used in the click handler above
+        // We'll keep it for compatibility
 
-                try {
-                    // Request camera with user permission
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'environment',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        },
-                        audio: false
+        // ============================================================
+        //  RENDER HISTORY
+        // ============================================================
+        function renderHistoryList() {
+            const container = document.getElementById('history-list');
+            const empty = document.getElementById('history-empty');
+
+            if (transactionHistory.length === 0) {
+                container.classList.add('hidden');
+                empty.classList.remove('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+            empty.classList.add('hidden');
+
+            let html = '';
+            transactionHistory.forEach((item) => {
+                html += `
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4 flex justify-between items-start shadow-sm">
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-gray-800 text-sm">${item.merchant}</span>
+                                <span class="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">${item.status}</span>
+                            </div>
+                            <div class="text-gray-500 text-[11px] font-mono">${item.e2e}</div>
+                            <div class="text-gray-400 text-[11px]">${item.date}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-extrabold text-gray-900">${item.amount}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // ============================================================
+        //  CAMERA (manual scan only, no auto-timer)
+        // ============================================================
+        function startRealCamera() {
+            const video = document.getElementById('camera-preview');
+            video.classList.remove('hidden');
+
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                    .then(function(stream) {
+                        cameraStream = stream;
+                        video.srcObject = stream;
+                        video.play();
+                        showToast('Camera started. Tap Scan again to detect QR.');
+
+                        // REMOVED auto-timer – user must tap Scan again to simulate detection
+                        // No timeout here – manual only
+
+                    })
+                    .catch(function(err) {
+                        console.error('Camera error:', err);
+                        showToast('Camera permission denied. Using mock scan.');
+                        // Still go to amount screen manually? No, user must tap again.
                     });
-
-                    // Success: display video
-                    video.srcObject = stream;
-                    videoContainer.style.display = 'block';
-                    isCameraActive = true;
-                    cameraBtn.innerHTML = '⏹️ Stop Camera';
-                    cameraBtn.disabled = false;
-                    setStatus('✅ Camera is active', 'success');
-
-                    // Update permission state
-                    const state = await checkPermissionState();
-                    updatePermissionBadge(state);
-
-                    // Handle stream ending (user revokes permission or other error)
-                    stream.getVideoTracks()[0].addEventListener('ended', () => {
-                        stopCamera();
-                        setStatus('Camera was stopped', 'info');
-                    });
-
-                } catch (err) {
-                    console.error('Camera error:', err);
-                    let errorMsg = 'Unable to access camera.';
-
-                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                        errorMsg = '❌ Permission denied. Please allow camera access in your browser settings.';
-                        updatePermissionBadge('denied');
-                    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                        errorMsg = '❌ No camera found on this device.';
-                    } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                        errorMsg = '❌ Camera is in use by another application.';
-                    } else if (err.name === 'OverconstrainedError') {
-                        errorMsg = '❌ Camera does not support requested settings.';
-                    } else {
-                        errorMsg = `❌ Error: ${err.message || 'Unknown error'}`;
-                    }
-
-                    setStatus(errorMsg, 'error');
-                    cameraBtn.innerHTML = '<span class="btn-icon">📷</span> Open Camera';
-                    cameraBtn.disabled = false;
-                    stopCamera();
-                }
+            } else {
+                showToast('Device doesn\'t support camera.');
             }
+        }
 
-            // Toggle camera on/off
-            async function toggleCamera() {
-                if (isCameraActive) {
-                    stopCamera();
-                    setStatus('Camera stopped', 'info');
+        // New function: simulate QR detection (called on second Scan tap)
+        function detectQR() {
+            // Check if camera is active
+            if (!cameraStream) {
+                showToast('Please start camera first');
+                return;
+            }
+            // Simulate QR detection
+            stopCamera();
+            changeScreen('amount_input_screen');
+            showToast('QR Code scanned successfully!');
+        }
+
+        // Override Scan button: first tap starts camera, second tap detects QR
+        document.addEventListener('DOMContentLoaded', function() {
+            const scanBtn = document.getElementById('scan-btn');
+            let scanTapCount = 0;
+
+            scanBtn.addEventListener('click', function() {
+                if (!cameraStream) {
+                    // First tap: start camera
+                    startRealCamera();
                 } else {
-                    await startCamera();
+                    // Second tap: detect QR (camera already running)
+                    detectQR();
                 }
+            });
+        });
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+                cameraStream = null;
+                const video = document.getElementById('camera-preview');
+                video.srcObject = null;
+                video.classList.add('hidden');
+            }
+        }
+
+        // ============================================================
+        //  SCREEN SWITCH
+        // ============================================================
+        function changeScreen(screenId) {
+            if (screenId !== 'scan_screen') stopCamera();
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // ============================================================
+        //  PAYMENT FLOW
+        // ============================================================
+        function goToConfirmPreview() {
+            const raw = document.getElementById('amount-field').value;
+            const sanitized = parseFloat(raw.replace(/[^0-9.]/g, ''));
+            if (isNaN(sanitized) || sanitized <= 0) {
+                showToast('Please enter a valid amount');
+                return;
             }
 
-            // Permission change listener (when user changes permission via browser)
-            async function handlePermissionChange() {
-                const state = await checkPermissionState();
-                updatePermissionBadge(state);
+            currentE2EId = generateE2EId();
+            const formatted = sanitized.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
 
-                // If permission was revoked while camera is active, stop it
-                if (state === 'denied' && isCameraActive) {
-                    stopCamera();
-                    setStatus('Camera access was revoked', 'error');
+            document.getElementById('confirm-e2e-id').textContent = currentE2EId;
+            document.getElementById('confirm-amt-label').textContent = formatted + ' MMK';
+            document.getElementById('confirm-total-label').textContent = formatted + ' MMK';
+
+            document.getElementById('success-e2e-id').textContent = currentE2EId;
+            document.getElementById('success-amt').textContent = formatted + ' MMK';
+            document.getElementById('success-total').textContent = formatted + ' MMK';
+
+            const now = new Date();
+            const ts =
+                `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('confirm-datetime-stamp').textContent = ts;
+            document.getElementById('success-date').textContent = ts;
+
+            changeScreen('confirm_preview_screen');
+        }
+
+        // ============================================================
+        //  COUNTDOWN → SUCCESS
+        // ============================================================
+        function triggerCountdown() {
+            changeScreen('loading_countdown_screen');
+
+            const label = document.getElementById('countdown-number');
+            const circle = document.getElementById('countdown-progress');
+            let counter = 6;
+            label.textContent = counter;
+            circle.style.strokeDashoffset = 0;
+
+            const interval = setInterval(() => {
+                counter--;
+                label.textContent = counter > 0 ? counter : 0;
+                const offset = 283 - (283 * (6 - counter)) / 6;
+                circle.style.strokeDashoffset = offset;
+
+                if (counter <= 0) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        saveTransactionToHistory();
+                        changeScreen('success_screen');
+                    }, 400);
                 }
+            }, 1000);
+        }
+
+        // ============================================================
+        //  SAVE HISTORY
+        // ============================================================
+        function saveTransactionToHistory() {
+            const date = document.getElementById('success-date').textContent;
+            const total = document.getElementById('success-total').textContent;
+            const e2e = currentE2EId || '6a2a305cc3293e51139f9030';
+
+            const record = {
+                merchant: merchantConfig.en,
+                e2e: e2e,
+                amount: total,
+                date: date,
+                status: 'Success'
+            };
+
+            transactionHistory.unshift(record);
+            localStorage.setItem('mmqr_history', JSON.stringify(transactionHistory));
+        }
+
+        // ============================================================
+        //  DOWNLOAD RECEIPT
+        // ============================================================
+        function downloadReceipt() {
+            showToast('Generating receipt image...');
+            const content = document.getElementById('receipt-content');
+            const footer = document.querySelector('#success_screen .p-4.bg-white.border-t');
+            footer.classList.add('hidden');
+
+            html2canvas(content, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                allowTaint: false,
+                useCORS: true,
+                scrollY: -window.scrollY
+            }).then(canvas => {
+                footer.classList.remove('hidden');
+                const link = document.createElement('a');
+                link.download = `Receipt_${new Date().getTime()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                showToast('Receipt downloaded successfully!');
+            }).catch(err => {
+                console.error('html2canvas error:', err);
+                footer.classList.remove('hidden');
+                showToast('Error generating image. Please try again.');
+            });
+        }
+
+        // ============================================================
+        //  UTILITIES
+        // ============================================================
+        function generateE2EId() {
+            const prefix = '6a2a305cc3293e5113';
+            const chars = '0123456789abcdef';
+            let suffix = '';
+            for (let i = 0; i < 6; i++) {
+                suffix += chars[Math.floor(Math.random() * 16)];
             }
+            return prefix + suffix;
+        }
 
-            // Initialize
-            (async function init() {
-                // Check initial permission
-                const state = await checkPermissionState();
-                updatePermissionBadge(state);
+        function clearAmounts() {
+            document.getElementById('amount-field').value = '45,000';
+            document.getElementById('remark-field').value = '';
+            showToast('Fields Cleared');
+        }
 
-                // Listen for permission changes (if supported)
-                try {
-                    if (navigator.permissions && navigator.permissions.query) {
-                        const perm = await navigator.permissions.query({ name: 'camera' });
-                        perm.addEventListener('change', handlePermissionChange);
-                    }
-                } catch (e) {
-                    // Ignore
-                }
+        function resetApp() {
+            document.getElementById('amount-field').value = '45,000';
+            document.getElementById('remark-field').value = '';
+            const placeholder = '6a2a305cc3293e5113------';
+            document.getElementById('confirm-e2e-id').textContent = placeholder;
+            document.getElementById('success-e2e-id').textContent = placeholder;
+            currentE2EId = '';
+            // Ensure merchant config is applied
+            applyMerchantConfig();
+            changeScreen('scan_screen');
+        }
 
-                // Button click handler
-                cameraBtn.addEventListener('click', toggleCamera);
+        function showToast(msg) {
+            const el = document.getElementById('custom-toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            clearTimeout(el._timer);
+            el._timer = setTimeout(() => el.classList.remove('show'), 2500);
+        }
 
-                // Cleanup on page unload
-                window.addEventListener('beforeunload', () => {
-                    stopCamera();
-                });
-
-                console.log('📷 Camera app initialized. Tap the button to request permission.');
-            })();
-
-        })();
+        // Format amount input
+        document.getElementById('amount-field').addEventListener('input', function(e) {
+            let val = e.target.value.replace(/[^0-9.]/g, '');
+            if (val) {
+                const parts = val.split('.');
+                parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
+                e.target.value = parts.join('.');
+            } else {
+                e.target.value = '';
+            }
+        });
     </script>
+
 </body>
 </html>
