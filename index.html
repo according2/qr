@@ -127,6 +127,15 @@
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        #upload-preview {
+            position: absolute;
+            inset: 0;
+            object-fit: contain;
+            z-index: 5;
+            background: #111;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -144,6 +153,7 @@
                 <div class="flex-grow relative flex flex-col items-center justify-center px-8 pt-4 pb-4">
                     <div class="relative w-full max-w-[320px] aspect-square border-0 rounded-lg overflow-hidden bg-[#111] shadow-2xl">
                         <video id="camera-preview" class="w-full h-full object-cover hidden"></video>
+                        <img id="upload-preview" src="" alt="Uploaded QR" />
                         <div class="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
                         <div class="viewfinder-corner tl z-20"></div>
                         <div class="viewfinder-corner tr z-20"></div>
@@ -156,13 +166,17 @@
                         </div>
                     </div>
                     <p class="text-gray-300 text-sm mt-6 font-medium">Scanning merchant payment code...</p>
-                    <p class="text-gray-500 text-xs mt-1">Tap "Scan" to start</p>
+                    <p class="text-gray-500 text-xs mt-1">Tap "Scan" to start camera or upload from gallery</p>
                 </div>
-                <div class="absolute bottom-6 left-0 w-full p-4 bg-black/80 border-t border-gray-800 flex items-center justify-between gap-4 z-40 shrink-0">
-                    <button onclick="startRealCamera()" id="scan-btn" class="flex-1 h-12 bg-[#2E9E3F] hover:bg-[#258232] text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 flex items-center justify-center gap-2">
+                <div class="absolute bottom-6 left-0 w-full p-4 bg-black/80 border-t border-gray-800 flex items-center justify-between gap-2 z-40 shrink-0 flex-wrap">
+                    <button id="scan-btn" class="flex-1 h-12 bg-[#2E9E3F] hover:bg-[#258232] text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 flex items-center justify-center gap-2 min-w-[80px]">
                         <i class="fas fa-camera"></i> Scan
                     </button>
-                    <button onclick="openHistory()" class="flex-1 h-12 bg-white/10 hover:bg-white/20 text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 flex items-center justify-center gap-2">
+                    <label class="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 flex items-center justify-center gap-2 min-w-[80px] cursor-pointer">
+                        <i class="fas fa-image"></i> Upload
+                        <input type="file" id="gallery-upload" accept="image/*" class="hidden" />
+                    </label>
+                    <button onclick="openHistory()" class="flex-1 h-12 bg-white/10 hover:bg-white/20 text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 flex items-center justify-center gap-2 min-w-[80px]">
                         <i class="fas fa-clock-rotate-left"></i> History
                     </button>
                 </div>
@@ -180,7 +194,15 @@
                     <div class="flex flex-col items-center my-4">
                         <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRyuSd3Mo-CNgPEuC0DAdr6ojlkn6EPnRrSyNZIPIaz8g&s=10" alt="Myanmar Pay MMQR Logo" class="h-24 object-contain" />
                     </div>
+                    
                     <div class="space-y-4 mt-4">
+                        <!-- Merchant Selector -->
+                        <div>
+                            <label class="block text-[15px] font-medium text-gray-700 mb-1">Select Merchant</label>
+                            <select id="merchant-selector" class="w-full h-12 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-base focus:outline-none focus:ring-1 focus:ring-[#2E9E3F] focus:border-[#2E9E3F] bg-white" onchange="onMerchantChange()">
+                            </select>
+                        </div>
+
                         <div class="flex justify-between items-start border-b border-gray-50 pb-1">
                             <span class="text-[15px] text-gray-500 font-medium">Merchant Name</span>
                             <span id="display-merchant-en" class="font-bold text-gray-900 text-right text-[15px]">PALACE RESTAURANT</span>
@@ -191,16 +213,17 @@
                         </div>
                         <div class="flex justify-between items-start border-b border-gray-50 pb-1">
                             <span class="text-[15px] text-gray-500 font-medium">Merchant PAN</span>
-                            <span class="font-mono font-bold text-gray-900 tracking-wider text-[15px]">223733XXXXX5963</span>
+                            <span id="display-merchant-pan" class="font-mono font-bold text-gray-900 tracking-wider text-[15px]">223733XXXXX5963</span>
                         </div>
                         <div class="flex justify-between items-start border-b border-gray-50 pb-1">
                             <span class="text-[15px] text-gray-500 font-medium">Merchant City</span>
-                            <span class="font-bold text-gray-900 text-right text-[15px]">YANGON</span>
+                            <span id="display-merchant-city" class="font-bold text-gray-900 text-right text-[15px]">YANGON</span>
                         </div>
                         <div class="flex justify-between items-start">
                             <span class="text-[15px] text-gray-500 font-medium">Merchant City (My)</span>
-                            <span class="font-bold text-gray-900 text-right text-[15px]">ရန်ကုန်</span>
+                            <span id="display-merchant-city-my" class="font-bold text-gray-900 text-right text-[15px]">ရန်ကုန်</span>
                         </div>
+
                         <div class="pt-2">
                             <label class="block text-[15px] font-medium text-gray-700 mb-1">Amount (MMK)</label>
                             <div class="relative flex items-center">
@@ -266,7 +289,7 @@
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-500 font-medium">Merchant PAN</span>
-                            <span class="text-gray-900 font-mono font-bold tracking-wide">223733XXXXX5963</span>
+                            <span id="confirm-merchant-pan" class="text-gray-900 font-mono font-bold tracking-wide">223733XXXXX5963</span>
                         </div>
                     </div>
                     <div class="space-y-3 text-[15px] text-gray-600 pt-4">
@@ -392,7 +415,7 @@
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="font-normal text-gray-500">Merchant PAN</span>
-                            <span class="text-gray-800 font-mono font-normal tracking-wide">223733XXXXX5963</span>
+                            <span id="success-merchant-pan" class="text-gray-800 font-mono font-normal tracking-wide">223733XXXXX5963</span>
                         </div>
                         <div class="flex justify-between">
                             <span class="font-normal text-gray-500">Amount</span>
@@ -427,7 +450,7 @@
                         <i class="fas fa-chevron-left text-lg"></i>
                     </button>
                     <div class="flex-grow text-center font-bold text-gray-900 text-lg pr-10">Transaction History</div>
-                    <button id="history-config-btn" onclick="openMerchantConfig()" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors" title="Merchant Config">
+                    <button onclick="openMerchantConfig()" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors" title="Merchant Config">
                         <i class="fas fa-cog text-lg"></i>
                     </button>
                 </div>
@@ -441,7 +464,7 @@
                 </div>
             </div>
 
-            <!-- SCREEN 6: MERCHANT CONFIG (hidden, accessed via History button) -->
+            <!-- SCREEN 6: MERCHANT CONFIG (with multiple merchants) -->
             <div id="merchant_config_screen" class="screen flex-col h-full bg-white">
                 <div class="h-14 flex items-center px-4 border-b border-gray-100 bg-white shrink-0">
                     <button onclick="changeScreen('history_screen')" class="text-gray-700 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
@@ -452,12 +475,11 @@
                 <div class="flex-grow overflow-y-auto px-5 py-6 no-scrollbar bg-white">
                     <div class="space-y-5">
                         <div>
-                            <label class="block text-[15px] font-medium text-gray-700 mb-1">Merchant Name (EN)</label>
-                            <input type="text" id="config-merchant-en" value="PALACE RESTAURANT" class="w-full h-12 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-base focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
-                        </div>
-                        <div>
-                            <label class="block text-[15px] font-medium text-gray-700 mb-1">Merchant Name (MM)</label>
-                            <input type="text" id="config-merchant-my" value="ပလတ်စ် စားသောက်ဆိုင်" class="w-full h-12 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-base focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
+                            <label class="block text-[15px] font-medium text-gray-700 mb-1">Merchant List</label>
+                            <div id="merchant-list-container" class="space-y-3"></div>
+                            <button onclick="addMerchantRow()" class="mt-2 w-full h-10 border-2 border-[#2E9E3F] text-[#2E9E3F] hover:bg-[#2E9E3F] hover:text-white font-bold rounded-lg transition-all text-[14px] flex items-center justify-center gap-2">
+                                <i class="fas fa-plus"></i> Add Merchant
+                            </button>
                         </div>
                         <button onclick="saveMerchantConfig()" class="w-full h-12 bg-[#2E9E3F] hover:bg-[#258232] text-white font-bold rounded-lg transition-all text-[16px] shadow-sm transform active:scale-95 mt-4">
                             Save Changes
@@ -476,14 +498,28 @@
         let cameraStream = null;
         let transactionHistory = [];
         let currentE2EId = '';
-        let tapCount = 0;
-        let tapTimer = null;
+        let scanTimeout = null;
+        let selectedMerchantId = null;
 
-        // Load merchant config from localStorage
-        let merchantConfig = {
-            en: 'PALACE RESTAURANT',
-            my: 'ပလတ်စ် စားသောက်ဆိုင်'
-        };
+        // Merchant data structure: array of objects
+        let merchants = [
+            {
+                id: 'merch_1',
+                en: 'PALACE RESTAURANT',
+                my: 'ပလတ်စ် စားသောက်ဆိုင်',
+                pan: '223733XXXXX5963',
+                city: 'YANGON',
+                cityMy: 'ရန်ကုန်'
+            },
+            {
+                id: 'merch_2',
+                en: 'GOLDEN TEA HOUSE',
+                my: 'ရွှေလက်ဖက်ရည်ဆိုင်',
+                pan: '223733XXXXX7890',
+                city: 'MANDALAY',
+                cityMy: 'မန္တလေး'
+            }
+        ];
 
         // ============================================================
         //  INIT
@@ -492,135 +528,260 @@
             const stored = localStorage.getItem('mmqr_history');
             if (stored) transactionHistory = JSON.parse(stored);
 
-            const configStored = localStorage.getItem('mmqr_merchant_config');
-            if (configStored) {
-                merchantConfig = JSON.parse(configStored);
-                applyMerchantConfig();
+            const merchantsStored = localStorage.getItem('mmqr_merchants');
+            if (merchantsStored) {
+                merchants = JSON.parse(merchantsStored);
+            }
+
+            // Set default selected merchant
+            if (merchants.length > 0) {
+                selectedMerchantId = merchants[0].id;
             }
 
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById('scan_screen').classList.add('active');
+
+            // Gallery upload handler
+            document.getElementById('gallery-upload').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const preview = document.getElementById('upload-preview');
+                        preview.src = event.target.result;
+                        preview.style.display = 'block';
+                        document.getElementById('camera-preview').classList.add('hidden');
+                        stopCamera();
+                        showToast('QR image uploaded!');
+                        setTimeout(() => {
+                            changeScreen('amount_input_screen');
+                            showToast('QR Code processed from gallery!');
+                        }, 1500);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Render initial data
+            renderMerchantSelector();
+            renderMerchantConfigList();
+            applySelectedMerchant();
         });
 
         // ============================================================
-        //  MERCHANT CONFIG
+        //  MERCHANT SELECTOR (Amount Screen)
         // ============================================================
-        function applyMerchantConfig() {
-            // Update display fields on amount screen
-            document.getElementById('display-merchant-en').textContent = merchantConfig.en;
-            document.getElementById('display-merchant-my').textContent = merchantConfig.my;
-            // Update confirm screen
-            document.getElementById('confirm-merchant-en').textContent = merchantConfig.en;
-            // Update success screen
-            document.getElementById('success-merchant-en').textContent = merchantConfig.en;
-            // Update config inputs
-            document.getElementById('config-merchant-en').value = merchantConfig.en;
-            document.getElementById('config-merchant-my').value = merchantConfig.my;
+        function renderMerchantSelector() {
+            const selector = document.getElementById('merchant-selector');
+            selector.innerHTML = '';
+            merchants.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.id;
+                option.textContent = `${m.en} (${m.my})`;
+                if (m.id === selectedMerchantId) option.selected = true;
+                selector.appendChild(option);
+            });
         }
 
-        function openMerchantConfig() {
-            // Load current config into inputs
-            document.getElementById('config-merchant-en').value = merchantConfig.en;
-            document.getElementById('config-merchant-my').value = merchantConfig.my;
-            changeScreen('merchant_config_screen');
+        function onMerchantChange() {
+            const selector = document.getElementById('merchant-selector');
+            selectedMerchantId = selector.value;
+            applySelectedMerchant();
+        }
+
+        function applySelectedMerchant() {
+            const merchant = merchants.find(m => m.id === selectedMerchantId);
+            if (!merchant) return;
+
+            document.getElementById('display-merchant-en').textContent = merchant.en;
+            document.getElementById('display-merchant-my').textContent = merchant.my;
+            document.getElementById('display-merchant-pan').textContent = merchant.pan;
+            document.getElementById('display-merchant-city').textContent = merchant.city;
+            document.getElementById('display-merchant-city-my').textContent = merchant.cityMy;
+
+            // Also update confirm and success screens
+            document.getElementById('confirm-merchant-en').textContent = merchant.en;
+            document.getElementById('confirm-merchant-pan').textContent = merchant.pan;
+            document.getElementById('success-merchant-en').textContent = merchant.en;
+            document.getElementById('success-merchant-pan').textContent = merchant.pan;
+        }
+
+        // ============================================================
+        //  MERCHANT CONFIG (Add/Edit/Delete)
+        // ============================================================
+        function renderMerchantConfigList() {
+            const container = document.getElementById('merchant-list-container');
+            container.innerHTML = '';
+            
+            merchants.forEach((m, index) => {
+                const row = document.createElement('div');
+                row.className = 'bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2';
+                row.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="font-medium text-gray-700 text-sm">#${index + 1}</span>
+                        <button onclick="deleteMerchant('${m.id}')" class="ml-auto text-red-500 hover:text-red-700 text-sm">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 gap-2">
+                        <input type="text" id="config-en-${m.id}" value="${m.en}" placeholder="Merchant Name (EN)" class="w-full h-10 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-sm focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
+                        <input type="text" id="config-my-${m.id}" value="${m.my}" placeholder="Merchant Name (MM)" class="w-full h-10 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-sm focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
+                        <input type="text" id="config-pan-${m.id}" value="${m.pan}" placeholder="Merchant PAN" class="w-full h-10 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-sm focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="text" id="config-city-${m.id}" value="${m.city}" placeholder="City (EN)" class="w-full h-10 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-sm focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
+                            <input type="text" id="config-citymy-${m.id}" value="${m.cityMy}" placeholder="City (MM)" class="w-full h-10 border border-gray-300 rounded-lg px-3 text-gray-900 font-medium text-sm focus:outline-none focus:ring-1 focus:ring-[#2E9E3F]" />
+                        </div>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function addMerchantRow() {
+            const newId = 'merch_' + Date.now();
+            merchants.push({
+                id: newId,
+                en: 'New Merchant',
+                my: 'စက်အသစ်',
+                pan: '223733XXXXX0000',
+                city: 'YANGON',
+                cityMy: 'ရန်ကုန်'
+            });
+            renderMerchantConfigList();
+            // Auto-select the new merchant
+            selectedMerchantId = newId;
+            renderMerchantSelector();
+            applySelectedMerchant();
+            showToast('New merchant added');
+        }
+
+        function deleteMerchant(id) {
+            if (merchants.length <= 1) {
+                showToast('Cannot delete last merchant');
+                return;
+            }
+            merchants = merchants.filter(m => m.id !== id);
+            if (selectedMerchantId === id) {
+                selectedMerchantId = merchants[0].id;
+            }
+            renderMerchantConfigList();
+            renderMerchantSelector();
+            applySelectedMerchant();
+            showToast('Merchant deleted');
         }
 
         function saveMerchantConfig() {
-            const en = document.getElementById('config-merchant-en').value.trim();
-            const my = document.getElementById('config-merchant-my').value.trim();
-            if (!en || !my) {
-                showToast('Both fields are required');
-                return;
-            }
-            merchantConfig.en = en;
-            merchantConfig.my = my;
-            localStorage.setItem('mmqr_merchant_config', JSON.stringify(merchantConfig));
-            applyMerchantConfig();
+            // Read all values from the config inputs
+            const updated = [];
+            merchants.forEach(m => {
+                const en = document.getElementById(`config-en-${m.id}`)?.value.trim() || m.en;
+                const my = document.getElementById(`config-my-${m.id}`)?.value.trim() || m.my;
+                const pan = document.getElementById(`config-pan-${m.id}`)?.value.trim() || m.pan;
+                const city = document.getElementById(`config-city-${m.id}`)?.value.trim() || m.city;
+                const cityMy = document.getElementById(`config-citymy-${m.id}`)?.value.trim() || m.cityMy;
+                updated.push({ id: m.id, en, my, pan, city, cityMy });
+            });
+            merchants = updated;
+            localStorage.setItem('mmqr_merchants', JSON.stringify(merchants));
+            
+            renderMerchantSelector();
+            applySelectedMerchant();
             showToast('Merchant config saved!');
             changeScreen('history_screen');
         }
 
+        function openMerchantConfig() {
+            renderMerchantConfigList();
+            changeScreen('merchant_config_screen');
+        }
+
         // ============================================================
-        //  HISTORY (with 3-tap detection)
+        //  CAMERA (6s auto-advance)
+        // ============================================================
+        function startRealCamera() {
+            const video = document.getElementById('camera-preview');
+            video.classList.remove('hidden');
+            document.getElementById('upload-preview').style.display = 'none';
+
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                    .then(function(stream) {
+                        cameraStream = stream;
+                        video.srcObject = stream;
+                        video.play();
+                        showToast('Camera started. Tap Scan again to detect QR.');
+
+                        if (scanTimeout) clearTimeout(scanTimeout);
+                        scanTimeout = setTimeout(() => {
+                            if (cameraStream) {
+                                stopCamera();
+                                changeScreen('amount_input_screen');
+                                showToast('Scan timeout — proceeding to payment');
+                            }
+                        }, 6000);
+                    })
+                    .catch(function(err) {
+                        console.error('Camera error:', err);
+                        showToast('Camera permission denied. Using mock scan.');
+                        setTimeout(() => {
+                            changeScreen('amount_input_screen');
+                        }, 1500);
+                    });
+            } else {
+                showToast('Device doesn\'t support camera.');
+                setTimeout(() => {
+                    changeScreen('amount_input_screen');
+                }, 1500);
+            }
+        }
+
+        function detectQR() {
+            if (!cameraStream) {
+                showToast('Please start camera first');
+                return;
+            }
+            if (scanTimeout) {
+                clearTimeout(scanTimeout);
+                scanTimeout = null;
+            }
+            stopCamera();
+            changeScreen('amount_input_screen');
+            showToast('QR Code scanned successfully!');
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+                cameraStream = null;
+                const video = document.getElementById('camera-preview');
+                video.srcObject = null;
+                video.classList.add('hidden');
+            }
+            if (scanTimeout) {
+                clearTimeout(scanTimeout);
+                scanTimeout = null;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const scanBtn = document.getElementById('scan-btn');
+            scanBtn.addEventListener('click', function() {
+                if (!cameraStream) {
+                    startRealCamera();
+                } else {
+                    detectQR();
+                }
+            });
+        });
+
+        // ============================================================
+        //  HISTORY
         // ============================================================
         function openHistory() {
-            // Reset tap counter when opening history normally
-            tapCount = 0;
-            if (tapTimer) {
-                clearTimeout(tapTimer);
-                tapTimer = null;
-            }
             renderHistoryList();
             changeScreen('history_screen');
         }
 
-        // Detect 3 taps on History button → Merchant Config
-        document.addEventListener('click', function(e) {
-            const btn = e.target.closest('#history-config-btn');
-            if (!btn) return;
-
-            // This is the gear icon inside history screen
-            // We don't use this for 3-tap anymore — we use the main History button
-        });
-
-        // Override the History button click to detect 3 taps
-        // We'll replace the onclick with a wrapper
-        document.querySelector('[onclick="openHistory()"]').addEventListener('click', function(e) {
-            // Prevent default if any
-            e.stopPropagation();
-
-            tapCount++;
-            if (tapTimer) {
-                clearTimeout(tapTimer);
-                tapTimer = null;
-            }
-
-            // Reset after 800ms of no tap
-            tapTimer = setTimeout(() => {
-                tapCount = 0;
-                tapTimer = null;
-            }, 800);
-
-            if (tapCount === 3) {
-                tapCount = 0;
-                if (tapTimer) {
-                    clearTimeout(tapTimer);
-                    tapTimer = null;
-                }
-                openMerchantConfig();
-                showToast('Merchant Config opened');
-                return;
-            }
-
-            // Normal history open (1st or 2nd tap)
-            if (tapCount === 1) {
-                renderHistoryList();
-                changeScreen('history_screen');
-            }
-            // 2nd tap does nothing special, just opens history again if not already
-            if (tapCount === 2) {
-                // Already on history, do nothing
-            }
-        });
-
-        // Also need to keep the original inline onclick for fallback but we override it
-        // Actually we remove the inline onclick and bind properly
-        // Let's fix: remove onclick from HTML and use addEventListener
-        // We'll do that in the script after DOM load
-        document.addEventListener('DOMContentLoaded', function() {
-            const historyBtn = document.querySelector('[onclick="openHistory()"]');
-            if (historyBtn) {
-                historyBtn.removeAttribute('onclick');
-                // Our click handler above will handle it
-            }
-        });
-
-        // Also the original openHistory function is used in the click handler above
-        // We'll keep it for compatibility
-
-        // ============================================================
-        //  RENDER HISTORY
-        // ============================================================
         function renderHistoryList() {
             const container = document.getElementById('history-list');
             const empty = document.getElementById('history-empty');
@@ -655,74 +816,6 @@
         }
 
         // ============================================================
-        //  CAMERA (manual scan only, no auto-timer)
-        // ============================================================
-        function startRealCamera() {
-            const video = document.getElementById('camera-preview');
-            video.classList.remove('hidden');
-
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                    .then(function(stream) {
-                        cameraStream = stream;
-                        video.srcObject = stream;
-                        video.play();
-                        showToast('Camera started. Tap Scan again to detect QR.');
-
-                        // REMOVED auto-timer – user must tap Scan again to simulate detection
-                        // No timeout here – manual only
-
-                    })
-                    .catch(function(err) {
-                        console.error('Camera error:', err);
-                        showToast('Camera permission denied. Using mock scan.');
-                        // Still go to amount screen manually? No, user must tap again.
-                    });
-            } else {
-                showToast('Device doesn\'t support camera.');
-            }
-        }
-
-        // New function: simulate QR detection (called on second Scan tap)
-        function detectQR() {
-            // Check if camera is active
-            if (!cameraStream) {
-                showToast('Please start camera first');
-                return;
-            }
-            // Simulate QR detection
-            stopCamera();
-            changeScreen('amount_input_screen');
-            showToast('QR Code scanned successfully!');
-        }
-
-        // Override Scan button: first tap starts camera, second tap detects QR
-        document.addEventListener('DOMContentLoaded', function() {
-            const scanBtn = document.getElementById('scan-btn');
-            let scanTapCount = 0;
-
-            scanBtn.addEventListener('click', function() {
-                if (!cameraStream) {
-                    // First tap: start camera
-                    startRealCamera();
-                } else {
-                    // Second tap: detect QR (camera already running)
-                    detectQR();
-                }
-            });
-        });
-
-        function stopCamera() {
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(t => t.stop());
-                cameraStream = null;
-                const video = document.getElementById('camera-preview');
-                video.srcObject = null;
-                video.classList.add('hidden');
-            }
-        }
-
-        // ============================================================
         //  SCREEN SWITCH
         // ============================================================
         function changeScreen(screenId) {
@@ -742,6 +835,12 @@
                 return;
             }
 
+            // Ensure merchant is selected
+            if (!selectedMerchantId) {
+                showToast('Please select a merchant');
+                return;
+            }
+
             currentE2EId = generateE2EId();
             const formatted = sanitized.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
@@ -757,17 +856,16 @@
             document.getElementById('success-total').textContent = formatted + ' MMK';
 
             const now = new Date();
-            const ts =
-                `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            const ts = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
             document.getElementById('confirm-datetime-stamp').textContent = ts;
             document.getElementById('success-date').textContent = ts;
+
+            // Apply selected merchant details to confirm/success
+            applySelectedMerchant();
 
             changeScreen('confirm_preview_screen');
         }
 
-        // ============================================================
-        //  COUNTDOWN → SUCCESS
-        // ============================================================
         function triggerCountdown() {
             changeScreen('loading_countdown_screen');
 
@@ -793,16 +891,16 @@
             }, 1000);
         }
 
-        // ============================================================
-        //  SAVE HISTORY
-        // ============================================================
         function saveTransactionToHistory() {
             const date = document.getElementById('success-date').textContent;
             const total = document.getElementById('success-total').textContent;
             const e2e = currentE2EId || '6a2a305cc3293e51139f9030';
+            
+            const merchant = merchants.find(m => m.id === selectedMerchantId);
+            const merchantName = merchant ? merchant.en : 'Unknown Merchant';
 
             const record = {
-                merchant: merchantConfig.en,
+                merchant: merchantName,
                 e2e: e2e,
                 amount: total,
                 date: date,
@@ -813,9 +911,6 @@
             localStorage.setItem('mmqr_history', JSON.stringify(transactionHistory));
         }
 
-        // ============================================================
-        //  DOWNLOAD RECEIPT
-        // ============================================================
         function downloadReceipt() {
             showToast('Generating receipt image...');
             const content = document.getElementById('receipt-content');
@@ -869,9 +964,10 @@
             document.getElementById('confirm-e2e-id').textContent = placeholder;
             document.getElementById('success-e2e-id').textContent = placeholder;
             currentE2EId = '';
-            // Ensure merchant config is applied
-            applyMerchantConfig();
+            applySelectedMerchant();
             changeScreen('scan_screen');
+            document.getElementById('upload-preview').style.display = 'none';
+            document.getElementById('upload-preview').src = '';
         }
 
         function showToast(msg) {
